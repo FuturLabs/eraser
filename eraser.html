@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eraser — Email Sanitizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Figtree:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --eraser: #E07A6B;
+    --eraser-light: #FFF0ED;
+    --eraser-soft: #F5C4BC;
+    --eraser-deep: #C4584A;
+    --cream: #FBF8F4;
+    --cream-dark: #F3EDE5;
+    --card: #FFFFFF;
+    --ink: #2C2825;
+    --ink-light: #6B6560;
+    --ink-faint: #8A8480;
+    --green: #5B9A6B;
+    --green-bg: #EDF5EF;
+    --red-bg: #FDEAE8;
+    --red-text: #B94A3E;
+    --blue-bg: #EBF2FA;
+    --blue-text: #3D6A99;
+    --border: #E6E0D8;
+    --border-light: #F0EBE4;
+    --shadow-sm: 0 1px 3px rgba(44,40,37,0.04), 0 1px 2px rgba(44,40,37,0.06);
+    --shadow-md: 0 4px 16px rgba(44,40,37,0.06), 0 2px 6px rgba(44,40,37,0.04);
+    --shadow-lg: 0 12px 40px rgba(44,40,37,0.08), 0 4px 12px rgba(44,40,37,0.04);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  body {
+    font-family: 'Figtree', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Subtle paper grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 9999;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 28px 64px;
+    position: relative;
+    transition: max-width 0.3s ease;
+  }
+  .container.wide {
+    max-width: 1040px;
+    padding-top: 20px;
+  }
+  .container.wide .privacy-badge,
+  .container.wide #header-subtitle {
+    display: none;
+  }
+  .container.wide .header {
+    margin-bottom: 16px;
+  }
+  .container.wide .header h1 {
+    font-size: 28px;
+    margin-bottom: 0;
+  }
+  .container.wide .header h1 .eraser-dot {
+    width: 8px;
+    height: 8px;
+    top: -2px;
+    margin-left: 2px;
+  }
+  .container.wide .header-title-row {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .container.wide .header-title-row .start-over-link {
+    position: static;
+  }
+  .container.wide .header-file-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink-light);
+    margin-left: auto;
+  }
+  .container.wide .header-file-info .filename {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .container.wide .header-file-info .filesize {
+    color: var(--ink-faint);
+  }
+
+  /* ============ HEADER ============ */
+  .header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 44px;
+    font-weight: 600;
+    font-optical-sizing: auto;
+    letter-spacing: -1px;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .header h1 .eraser-dot {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    background: var(--eraser);
+    border-radius: 50%;
+    margin-left: 3px;
+    vertical-align: baseline;
+    position: relative;
+    top: -3px;
+  }
+  .header p {
+    font-size: 16px;
+    color: var(--ink-light);
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.65;
+  }
+
+  /* Privacy badge */
+  .privacy-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--green-bg);
+    color: var(--green);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 16px;
+    border-radius: 100px;
+    margin-bottom: 20px;
+    letter-spacing: 0.1px;
+  }
+  .privacy-badge svg { flex-shrink: 0; }
+
+  /* Start over link */
+  .start-over-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--eraser-deep);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+  .start-over-link:hover {
+    background: var(--eraser-light);
+  }
+  .header-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .header-title-row .start-over-link {
+    position: absolute;
+    left: 0;
+  }
+
+  /* ============ UPLOAD SECTION ============ */
+  .info-box {
+    background: var(--card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    font-size: 15px;
+    color: var(--ink-light);
+    line-height: 1.65;
+    box-shadow: var(--shadow-sm);
+  }
+  .info-box.collapsible {
+    margin-top: 32px;
+    padding: 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .info-box-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 14px 20px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink-light);
+    transition: color 0.2s ease;
+  }
+  .info-box-toggle:hover {
+    color: var(--ink);
+  }
+  .info-box-toggle strong {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-style: italic;
+    color: inherit;
+  }
+  .info-box-chevron {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    opacity: 0.5;
+  }
+  .info-box.collapsible.open .info-box-chevron {
+    transform: rotate(180deg);
+  }
+  .info-box-body {
+    max-height: 0;
+    opacity: 0;
+    padding: 0 20px;
+    overflow: hidden;
+    font-size: 14px;
+    color: var(--ink-light);
+    line-height: 1.65;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.25s ease,
+                padding 0.35s ease;
+  }
+  .info-box.collapsible.open .info-box-body {
+    max-height: 200px;
+    opacity: 1;
+    padding: 0 20px 16px;
+  }
+  .info-box strong {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-style: italic;
+    color: var(--ink);
+  }
+  .info-box code {
+    background: var(--eraser-light);
+    color: var(--eraser-deep);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* Steps indicators */
+  .steps-row {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 28px;
+  }
+  .step-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    box-shadow: none;
+  }
+  .step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--eraser-light);
+    color: var(--eraser-deep);
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-light);
+    line-height: 1.35;
+  }
+
+  /* Drop zone */
+  .upload-area {
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 64px 32px;
+    text-align: center;
+    background: var(--card);
+    cursor: pointer;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .upload-area::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, var(--eraser-light) 0%, transparent 70%);
+    opacity: 0.3;
+    transition: opacity 0.35s ease;
+  }
+  .upload-area:hover::before,
+  .upload-area.dragover::before {
+    opacity: 1;
+  }
+  .upload-area:hover, .upload-area.dragover {
+    border-color: var(--eraser);
+    box-shadow: var(--shadow-lg), 0 0 0 4px rgba(224, 122, 107, 0.12);
+    transform: translateY(-2px);
+  }
+  .upload-area > * { position: relative; z-index: 1; }
+  .upload-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--eraser-light) 0%, #FDE2DC 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .upload-area:hover .upload-icon {
+    transform: translateY(-3px);
+  }
+  .upload-area h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 19px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--ink);
+  }
+  .upload-area p {
+    font-size: 14px;
+    color: var(--ink-faint);
+  }
+  .upload-area .browse-link {
+    color: var(--eraser-deep);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1.5px solid var(--eraser-soft);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .upload-area .browse-link:hover {
+    border-color: var(--eraser-deep);
+  }
+  .upload-area .file-types {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--ink-faint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .upload-area .file-type-badge {
+    background: var(--cream-dark);
+    padding: 3px 10px;
+    border-radius: 5px;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    color: var(--ink-light);
+  }
+  #file-input { display: none; }
+
+  /* ============ RESULT SECTION ============ */
+  .result-section { display: none; }
+  .result-section.visible {
+    display: block;
+    animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .result-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .result-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .result-sidebar {
+    width: 190px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .result-sidebar .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+    font-size: 13.5px;
+  }
+  .sidebar-stats {
+    background: var(--card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .sidebar-stats-label {
+    font-family: 'Fraunces', serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  .sidebar-stats .redaction-summary {
+    flex-direction: column;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    gap: 6px;
+  }
+  .sidebar-stats .redaction-chip {
+    font-size: 11.5px;
+    padding: 4px 10px;
+    width: 100%;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* File info bar */
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    background: var(--card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    margin-bottom: 24px;
+    font-size: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .file-info-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--eraser-light) 0%, #FDE2DC 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .file-info .filename { font-weight: 600; color: var(--ink); }
+  .file-info .filesize { color: var(--ink-faint); font-size: 13px; }
+
+  /* Review warning */
+  .review-warning {
+    background: #FFFBF0;
+    border: 1px solid #F0DFB8;
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    font-size: 14px;
+    color: #7A6530;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.55;
+  }
+  .review-warning strong { color: #5C4A1E; }
+  .review-warning svg { flex-shrink: 0; margin-top: 2px; }
+
+  /* Redaction details */
+  .redaction-details {
+    background: var(--card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    margin-bottom: 28px;
+    box-shadow: var(--shadow-sm);
+  }
+  .redaction-details summary::-webkit-details-marker,
+  .redaction-details summary::marker {
+    display: none;
+    content: '';
+  }
+  .redaction-details .details-arrow {
+    display: inline-block;
+    font-size: 11px;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-left: 5px;
+    color: var(--ink-faint);
+  }
+  .redaction-details[open] .details-arrow {
+    transform: rotate(90deg);
+  }
+  .redaction-summary {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-light);
+  }
+  .redaction-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+  }
+  .redaction-chip.removed {
+    background: var(--red-bg);
+    color: var(--red-text);
+  }
+  .redaction-chip.kept {
+    background: var(--green-bg);
+    color: var(--green);
+  }
+  .redaction-chip.stripped {
+    background: var(--blue-bg);
+    color: var(--blue-text);
+  }
+
+  /* Section labels */
+  .section-label {
+    font-family: 'Fraunces', serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+
+  /* ============ RESULT CARD ============ */
+  .result-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-light);
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .result-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--cream);
+  }
+
+  /* Tabs */
+  .tab-bar {
+    display: flex;
+    gap: 3px;
+    background: var(--cream-dark);
+    border-radius: 10px;
+    padding: 3px;
+  }
+  .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-family: 'Figtree', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: var(--ink-faint);
+    transition: all 0.2s ease;
+  }
+  .tab:hover { color: var(--ink-light); }
+  .tab.active {
+    background: var(--card);
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgba(44,40,37,0.08);
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Email preview */
+  .email-render-wrapper {
+    background: #fff;
+  }
+  .email-render-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border-light);
+    background: linear-gradient(180deg, #FAFAF7 0%, #F7F5F1 100%);
+  }
+  .email-render-field {
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--ink);
+  }
+  .email-render-label {
+    font-weight: 700;
+    color: var(--ink-faint);
+    min-width: 64px;
+    display: inline-block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .email-render-frame {
+    width: 100%;
+    min-height: 400px;
+    border: none;
+    background: #fff;
+    display: block;
+  }
+  .click-redact-hint {
+    background: var(--blue-bg);
+    border: 1px solid #C9DAE9;
+    border-radius: 8px;
+    margin: 14px 18px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Raw source preview */
+  .preview-content {
+    padding: 22px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12.5px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 500px;
+    overflow-y: auto;
+    background: #FDFCFA;
+    color: var(--ink-light);
+  }
+  .preview-content .redacted {
+    background: var(--red-bg);
+    color: var(--red-text);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 11.5px;
+    letter-spacing: 0.2px;
+  }
+
+  /* ============ BUTTONS ============ */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 22px;
+    border-radius: var(--radius-sm);
+    font-family: 'Figtree', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    letter-spacing: 0.1px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--eraser);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(224, 122, 107, 0.25);
+  }
+  .btn-primary:hover {
+    background: var(--eraser-deep);
+    box-shadow: 0 4px 14px rgba(224, 122, 107, 0.35);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active { transform: scale(0.97) translateY(0); }
+  .btn-secondary {
+    background: var(--card);
+    color: var(--ink-light);
+    border: 1.5px solid var(--border);
+  }
+  .btn-secondary:hover {
+    background: var(--cream);
+    border-color: var(--ink-faint);
+    color: var(--ink);
+  }
+  .btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
+  .btn-download {
+    background: var(--ink);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(44,40,37,0.2);
+  }
+  .btn-download:hover {
+    background: #1a1816;
+    box-shadow: 0 4px 14px rgba(44,40,37,0.3);
+    transform: translateY(-1px);
+  }
+  .btn-download:active { transform: scale(0.97) translateY(0); }
+
+  .button-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* ============ TOAST ============ */
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    background: var(--ink);
+    color: #fff;
+    padding: 13px 26px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 10000;
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ============ ERROR ============ */
+  .error-msg {
+    background: var(--red-bg);
+    color: var(--red-text);
+    padding: 14px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 16px;
+    display: none;
+    border: 1px solid #F5D0CC;
+  }
+  .error-msg.visible { display: block; }
+
+  /* ============ ENTRANCE ANIMATIONS ============ */
+  .privacy-badge {
+    animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: 0s;
+  }
+  .header-title-row {
+    animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: 0.06s;
+  }
+  #header-subtitle {
+    animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: 0.12s;
+  }
+  .step-item {
+    animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .step-item:nth-child(1) { animation-delay: 0.18s; }
+  .step-item:nth-child(2) { animation-delay: 0.26s; }
+  .step-item:nth-child(3) { animation-delay: 0.34s; }
+  #upload-section .upload-area {
+    animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: 0.4s;
+  }
+  #upload-section .info-box {
+    animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: 0.48s;
+  }
+
+  /* ============ FOCUS & ACCESSIBILITY ============ */
+  .upload-area:focus-visible {
+    outline: 2px solid var(--eraser);
+    outline-offset: 2px;
+    border-color: var(--eraser);
+  }
+  .tab:focus-visible {
+    outline: 2px solid var(--eraser);
+    outline-offset: -2px;
+    border-radius: 8px;
+  }
+  .btn:focus-visible {
+    outline: 2px solid var(--eraser);
+    outline-offset: 2px;
+  }
+  .start-over-link:focus-visible {
+    outline: 2px solid var(--eraser);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 860px) {
+    .result-layout {
+      flex-direction: column;
+    }
+    .result-sidebar {
+      position: static;
+      width: 100%;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .result-sidebar .btn {
+      width: auto;
+      flex: 1;
+      min-width: 140px;
+    }
+    .container.wide { max-width: 780px; }
+  }
+  @media (max-width: 640px) {
+    .container { padding: 28px 16px 48px; }
+    .header h1 { font-size: 26px; }
+    .header p { font-size: 15px; }
+    .upload-area { padding: 40px 20px; }
+    .steps-row { flex-direction: column; gap: 6px; }
+    .result-sidebar { flex-direction: column; }
+    .result-sidebar .btn { width: 100%; flex: unset; min-width: unset; }
+    .result-card-header { flex-direction: column; gap: 10px; align-items: flex-start; }
+    .redaction-summary { gap: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div class="privacy-badge" id="privacy-badge">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z" fill="#5B9A6B"/><path d="M10 15.5l-3.5-3.5 1.41-1.41L10 12.67l5.59-5.59L17 8.5l-7 7z" fill="#fff"/></svg>
+      100% private — nothing leaves your device
+    </div>
+    <div class="header-title-row">
+      <a href="#" id="start-over" onclick="resetTool(); return false;" style="display:none;" class="start-over-link">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M19 12H5m0 0l7 7m-7-7l7-7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Back
+      </a>
+      <h1 id="header-title">eraser<span class="eraser-dot"></span></h1>
+      <div class="header-file-info" id="header-file-info" style="display:none;">
+        <span class="filename" id="header-filename"></span>
+        <span class="filesize" id="header-filesize"></span>
+      </div>
+    </div>
+    <p id="header-subtitle">Upload an email and we'll remove all personal information, keeping only the template structure.</p>
+  </div>
+
+  <!-- Upload Section -->
+  <div id="upload-section">
+    <div class="steps-row">
+      <div class="step-item">
+        <span class="step-num">1</span>
+        <span class="step-text">Drop your email file</span>
+      </div>
+      <div class="step-item">
+        <span class="step-num">2</span>
+        <span class="step-text">We strip personal info</span>
+      </div>
+      <div class="step-item">
+        <span class="step-num">3</span>
+        <span class="step-text">Review &amp; export</span>
+      </div>
+    </div>
+
+    <div class="upload-area" id="drop-zone" tabindex="0" role="button" aria-label="Upload email file">
+      <div class="upload-icon">
+        <svg width="28" height="28" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="#C4584A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 8l-5-5-5 5M12 3v12" stroke="#C4584A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h3>Drop your email file here</h3>
+      <p>or <span class="browse-link">browse your files</span></p>
+      <div class="file-types">
+        <span>Accepts</span>
+        <span class="file-type-badge">.eml</span>
+        <span class="file-type-badge">.txt</span>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept=".eml,.txt">
+
+    <div class="info-box collapsible" id="how-it-works">
+      <button class="info-box-toggle" onclick="toggleHowItWorks()" aria-expanded="false" aria-controls="how-it-works-body">
+        <strong>How does this work?</strong>
+        <svg class="info-box-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="info-box-body" id="how-it-works-body">
+        This tool runs entirely in your browser. Your email file is never uploaded to any server. It scans for personal information like names, email addresses, phone numbers, and account numbers — and replaces them with placeholders like <code>[EMAIL]</code> or <code>[NAME]</code>.
+      </div>
+    </div>
+
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+
+  <!-- Result Section -->
+  <div class="result-section" id="result-section">
+    <div class="file-info" id="file-info">
+      <div class="file-info-icon">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="#C4584A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="#C4584A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="filename" id="filename"></span>
+      <span class="filesize" id="filesize"></span>
+    </div>
+
+    <div class="review-warning">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#C49B2F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span><strong>Please review the output below.</strong> Make sure no personal details remain.</span>
+    </div>
+
+    <div class="section-label" style="margin-top: 4px;">Anonymized email</div>
+    <div class="result-layout">
+      <div class="result-main">
+        <div class="result-card">
+          <div class="result-card-header">
+            <div class="tab-bar" role="tablist">
+              <button class="tab active" id="tab-preview" onclick="switchTab('preview')" role="tab" aria-selected="true" aria-controls="panel-preview">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
+                Preview
+              </button>
+              <button class="tab" id="tab-source" onclick="switchTab('source')" role="tab" aria-selected="false" aria-controls="panel-source">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Raw Source
+              </button>
+            </div>
+            <button class="btn btn-sm btn-secondary" id="toggle-edit-btn" onclick="toggleEdit()" style="display:none;">
+              <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Edit
+            </button>
+          </div>
+          <!-- Email Preview -->
+          <div class="tab-panel active" id="panel-preview" role="tabpanel" aria-labelledby="tab-preview">
+            <div class="email-render-wrapper">
+              <div class="click-redact-hint" id="click-redact-hint" style="display:none;">
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Click any text in the preview to manually redact it</span>
+              </div>
+              <div class="email-render-header">
+                <div class="email-render-field"><span class="email-render-label">From:</span> <span id="render-from"></span></div>
+                <div class="email-render-field"><span class="email-render-label">Subject:</span> <span id="render-subject"></span></div>
+              </div>
+              <iframe id="email-render-frame" sandbox="allow-same-origin" class="email-render-frame"></iframe>
+            </div>
+          </div>
+          <!-- Raw Source -->
+          <div class="tab-panel" id="panel-source" role="tabpanel" aria-labelledby="tab-source">
+            <textarea id="result-editable" style="display:none; width:100%; min-height:400px; padding:22px; font-family:'SF Mono','Fira Code','Cascadia Code',monospace; font-size:12.5px; line-height:1.75; border:none; resize:vertical; outline:none; background:#FDFCFA; color: #6B6560;"></textarea>
+            <div class="preview-content" id="result-preview"></div>
+          </div>
+        </div>
+      </div>
+      <div class="result-sidebar">
+        <button class="btn btn-primary" onclick="copyResult()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M20 9h-9a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-9a2 2 0 00-2-2z" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+          Copy to Clipboard
+        </button>
+        <button class="btn btn-download" onclick="downloadResult()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M7 10l5 5 5-5M12 15V3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download .txt
+        </button>
+        <button class="btn btn-secondary" onclick="resetTool()">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M1 4v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.51 15a9 9 0 105.42-8.49L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Start Over
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =============================================
+// Email Parser & Redaction Engine
+// =============================================
+
+// Headers we want to keep (everything else is stripped)
+const ALLOWED_HEADERS = ['from', 'subject', 'content-transfer-encoding', 'mime-version', 'content-type'];
+
+// ---- MIME Parser ----
+
+function parseEmail(raw) {
+  // Split headers from body at first blank line
+  const headerBodySplit = raw.indexOf('\r\n\r\n') !== -1
+    ? raw.indexOf('\r\n\r\n')
+    : raw.indexOf('\n\n');
+
+  if (headerBodySplit === -1) {
+    return { headers: [], body: raw, isMultipart: false, boundary: null };
+  }
+
+  const headerSection = raw.substring(0, headerBodySplit);
+  const body = raw.substring(headerBodySplit).replace(/^(\r?\n)+/, '');
+
+  // Parse headers (handle folded/continuation lines)
+  const headerLines = [];
+  for (const line of headerSection.split(/\r?\n/)) {
+    if (/^\s+/.test(line) && headerLines.length > 0) {
+      headerLines[headerLines.length - 1] += ' ' + line.trim();
+    } else {
+      headerLines.push(line);
+    }
+  }
+
+  const headers = headerLines.map(line => {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) return { name: '', value: line, raw: line };
+    return {
+      name: line.substring(0, colonIdx).trim(),
+      value: decodeMimeEncodedWords(line.substring(colonIdx + 1).trim()),
+      raw: line
+    };
+  });
+
+  // Detect multipart
+  const contentTypeHeader = headers.find(h => h.name.toLowerCase() === 'content-type');
+  let isMultipart = false;
+  let boundary = null;
+
+  if (contentTypeHeader && /multipart/i.test(contentTypeHeader.value)) {
+    isMultipart = true;
+    const boundaryMatch = contentTypeHeader.value.match(/boundary="?([^";\s]+)"?/i);
+    if (boundaryMatch) boundary = boundaryMatch[1];
+  }
+
+  return { headers, body, isMultipart, boundary };
+}
+
+function filterHeaders(headers) {
+  const kept = [];
+  let removedCount = 0;
+
+  for (const header of headers) {
+    const lowerName = header.name.toLowerCase();
+    if (ALLOWED_HEADERS.includes(lowerName)) {
+      kept.push(header);
+    } else if (header.name) {
+      removedCount++;
+    }
+  }
+
+  return { kept, removedCount };
+}
+
+function extractMimeParts(body, boundary) {
+  if (!boundary) return [{ contentType: 'text/plain', headers: '', body: body }];
+
+  const parts = [];
+  const delimiter = '--' + boundary;
+
+  const sections = body.split(delimiter);
+
+  for (let section of sections) {
+    section = section.trim();
+    if (!section || section === '--') continue;
+
+    // Remove trailing end delimiter marker
+    if (section.endsWith('--')) {
+      section = section.slice(0, -2).trim();
+    }
+
+    // Split part headers from part body
+    const partSplit = section.indexOf('\r\n\r\n') !== -1
+      ? section.indexOf('\r\n\r\n')
+      : section.indexOf('\n\n');
+
+    let partHeaders = '';
+    let partBody = section;
+
+    if (partSplit !== -1) {
+      partHeaders = section.substring(0, partSplit);
+      partBody = section.substring(partSplit).replace(/^(\r?\n)+/, '');
+    }
+
+    // Determine content type of this part
+    const ctMatch = partHeaders.match(/Content-Type:\s*([^;\r\n]+)/i);
+    const contentType = ctMatch ? ctMatch[1].trim().toLowerCase() : 'text/plain';
+
+    // Check for nested multipart
+    const nestedBoundaryMatch = partHeaders.match(/boundary="?([^";\s]+)"?/i);
+    if (/^multipart\//i.test(contentType) && nestedBoundaryMatch) {
+      const nestedParts = extractMimeParts(partBody, nestedBoundaryMatch[1]);
+      parts.push(...nestedParts);
+    } else {
+      parts.push({ contentType, headers: partHeaders, body: partBody });
+    }
+  }
+
+  return parts;
+}
+
+function filterMimeParts(parts) {
+  // Prefer text/html, fall back to text/plain, reject everything else
+  const htmlPart = parts.find(p => p.contentType.startsWith('text/html'));
+  const plainPart = parts.find(p => p.contentType.startsWith('text/plain'));
+  const removedTypes = parts
+    .filter(p => p !== (htmlPart || plainPart))
+    .map(p => p.contentType);
+
+  const kept = htmlPart ? htmlPart : plainPart ? plainPart : null;
+  return { kept, removedTypes };
+}
+
+// ---- Content-Transfer-Encoding Decoders ----
+
+// RFC 2047 encoded-word decoder for headers (=?charset?encoding?text?=)
+function decodeMimeEncodedWords(text) {
+  return text.replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g, (match, charset, encoding, encoded) => {
+    try {
+      let bytes;
+      if (encoding.toUpperCase() === 'B') {
+        // Base64
+        const binary = atob(encoded);
+        bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      } else {
+        // Q-encoding (like quoted-printable but _ = space)
+        const qpText = encoded.replace(/_/g, ' ');
+        const parts = [];
+        let i = 0;
+        while (i < qpText.length) {
+          if (qpText[i] === '=' && i + 2 < qpText.length && /[0-9A-Fa-f]{2}/.test(qpText.substring(i + 1, i + 3))) {
+            parts.push(parseInt(qpText.substring(i + 1, i + 3), 16));
+            i += 3;
+          } else {
+            parts.push(qpText.charCodeAt(i));
+            i++;
+          }
+        }
+        bytes = new Uint8Array(parts);
+      }
+      return new TextDecoder(charset).decode(bytes);
+    } catch (e) {
+      return match; // Return original if decoding fails
+    }
+  });
+}
+
+function decodeQuotedPrintable(text) {
+  // First, join soft line breaks (= at end of line)
+  let joined = text.replace(/=\r?\n/g, '');
+
+  // Collect all bytes (encoded and literal) and decode as UTF-8
+  const bytes = [];
+  let i = 0;
+  while (i < joined.length) {
+    if (joined[i] === '=' && i + 2 < joined.length && /[0-9A-Fa-f]{2}/.test(joined.substring(i + 1, i + 3))) {
+      bytes.push(parseInt(joined.substring(i + 1, i + 3), 16));
+      i += 3;
+    } else {
+      bytes.push(joined.charCodeAt(i));
+      i++;
+    }
+  }
+
+  // Decode as UTF-8
+  try {
+    return new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+  } catch (e) {
+    return joined.replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  }
+}
+
+function decodeBase64(text) {
+  try {
+    const cleaned = text.replace(/\s/g, '');
+    return atob(cleaned);
+  } catch (e) {
+    return text;
+  }
+}
+
+function detectTransferEncoding(partHeaders) {
+  const match = partHeaders.match(/Content-Transfer-Encoding:\s*(\S+)/i);
+  return match ? match[1].toLowerCase().trim() : '7bit';
+}
+
+function decodePartBody(body, encoding) {
+  switch (encoding) {
+    case 'quoted-printable':
+      return decodeQuotedPrintable(body);
+    case 'base64':
+      return decodeBase64(body);
+    default:
+      return body;
+  }
+}
+
+// ---- PII Redaction ----
+
+const REDACTION_PATTERNS = [
+  {
+    name: 'Dollar amounts',
+    regex: /\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?\b/g,
+    replacement: '[AMOUNT]',
+  },
+  {
+    name: 'Email addresses',
+    regex: /[a-zA-Z0-9._%+\-]+@([a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/gi,
+    replacer: (match, domain) => `[EMAIL]@${domain}`,
+  },
+  {
+    name: 'Phone numbers',
+    regex: /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}(?!\d)/g,
+    replacement: '[PHONE]',
+    validate: (match) => {
+      const digits = match.replace(/\D/g, '');
+      if (digits.length < 7 || digits.length > 11) return false;
+      if (digits.length === 4 && /(?:19|20)\d{2}/.test(match)) return false;
+      return true;
+    }
+  },
+  {
+    name: 'SSN',
+    regex: /\b\d{3}[-]?\d{2}[-]?\d{4}\b/g,
+    replacement: '[SSN]',
+    validate: (match) => match.includes('-') && /^\d{3}-\d{2}-\d{4}$/.test(match)
+  },
+  {
+    name: 'Account numbers',
+    regex: /\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/g,
+    replacement: '[CARD_NUMBER]',
+  },
+  {
+    name: 'Partial account numbers',
+    regex: /(?:ending\s+in[:\s]*|last\s+(?:four|4)\s*(?:digits)?[:\s]*|[x*•●·\u2022\u25CF\u00B7\u2217\u2731]{2,}|(?:Mastercard|Visa|Amex|American\s+Express|Discover|Diners|JCB|Maestro|Debit|Credit)[-–—\s])\s*\d{4}\b/gi,
+    replacer: (match) => match.replace(/\d{4}\b/, '[LAST4]'),
+  },
+  {
+    name: 'Long number sequences',
+    regex: /(?<!\$)(?<!\$\s)(?<!\.)(?<!\d)\b\d{6,17}\b(?!\.?\d)/g,
+    replacement: '[ACCOUNT_NUM]',
+    validate: (match, context) => {
+      const idx = context.indexOf(match);
+      if (idx > 0 && context[idx-1] === '$') return false;
+      return true;
+    }
+  },
+  {
+    name: 'Street addresses',
+    regex: /\b\d{1,5}\s+(?:[NSEW]\.?\s+)?(?:[A-Z][a-z]+\s+){1,3}(?:Street|St|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Road|Rd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir|Terrace|Ter)\.?\b/gi,
+    replacement: '[ADDRESS]',
+  },
+  {
+    name: 'ZIP codes',
+    regex: /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/g,
+    replacement: '[STATE] [ZIP]',
+  },
+  {
+    name: 'IP addresses',
+    regex: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
+    replacement: '[IP_ADDRESS]',
+    validate: (match) => {
+      const parts = match.split('.');
+      return parts.every(p => parseInt(p) <= 255);
+    }
+  }
+];
+
+const NAME_PATTERNS = [
+  {
+    name: 'Greeting names',
+    regex: /(?:Dear|Hi|Hello|Hey|Good\s+(?:morning|afternoon|evening))\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/g,
+    replacer: (match, name) => match.replace(name, '[NAME]'),
+  },
+  {
+    name: 'Honorific names',
+    regex: /(?:Mr|Mrs|Ms|Dr|Prof)\.?\s+([A-Z][a-z]+)/g,
+    replacer: (match, name) => match.replace(name, '[NAME]'),
+  },
+  {
+    name: 'Labeled name fields',
+    regex: /(?:Account\s+holder|Cardholder|Card\s+holder|Customer|Member|Name|(?:Email\s+)?intended\s+for|sent\s+to|addressed\s+to)[:\s]+([A-Z][a-z]+\s+[A-Z][a-z]+)/gi,
+    replacer: (match, name) => match.replace(name, '[NAME]'),
+  },
+  {
+    name: 'Name comma phrase',
+    regex: /([A-Z][a-z]+\s+[A-Z][a-z]+),\s+(?:here'?s?\s|a\s+(?:transaction|purchase|payment|charge|deposit|transfer|withdrawal)|your\s|we\s|this\s|you\s|the\s|as\s|thank)/gi,
+    replacer: (match, name) => match.replace(name, '[NAME]'),
+  },
+  {
+    name: 'Inline header names',
+    regex: /(?:^|[\n\r])?\s*(?:To|From|Cc|Bcc|Reply-To)\s*:\s*([A-Z][a-z]+\s+[A-Z][a-z]+)(?:\s*<|\s*$|\s*\n)/gm,
+    replacer: (match, name) => match.replace(name, '[NAME]'),
+  },
+  {
+    name: 'Display names',
+    regex: /([A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-z]+)\s*</g,
+    replacer: (match, name) => match.replace(name, '[NAME]'),
+  }
+];
+
+function redactTextContent(text) {
+  const stats = {};
+
+  for (const pattern of NAME_PATTERNS) {
+    let count = 0;
+    text = text.replace(pattern.regex, (...args) => {
+      count++;
+      return pattern.replacer(...args);
+    });
+    if (count > 0) stats[pattern.name] = (stats[pattern.name] || 0) + count;
+  }
+
+  for (const pattern of REDACTION_PATTERNS) {
+    let count = 0;
+    if (pattern.replacer) {
+      text = text.replace(pattern.regex, (...args) => {
+        if (pattern.validate && !pattern.validate(args[0], text)) return args[0];
+        count++;
+        return pattern.replacer(...args);
+      });
+    } else {
+      text = text.replace(pattern.regex, (match) => {
+        if (pattern.validate && !pattern.validate(match, text)) return match;
+        count++;
+        return pattern.replacement;
+      });
+    }
+    if (count > 0) stats[pattern.name] = (stats[pattern.name] || 0) + count;
+  }
+
+  return { text, stats };
+}
+
+function redactHtml(html) {
+  const stats = {};
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  const walker = doc.createTreeWalker(doc.body || doc.documentElement, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  let node;
+  while (node = walker.nextNode()) {
+    textNodes.push(node);
+  }
+
+  const SKIP_TAGS = new Set(['STYLE', 'SCRIPT', 'NOSCRIPT', 'SVG', 'MATH', 'TEMPLATE']);
+
+  function hasSkippedAncestor(node) {
+    let el = node.parentNode;
+    while (el) {
+      if (SKIP_TAGS.has(el.nodeName)) return true;
+      el = el.parentNode;
+    }
+    return false;
+  }
+
+  for (const textNode of textNodes) {
+    if (hasSkippedAncestor(textNode)) continue;
+    const original = textNode.textContent;
+    if (!original || !original.trim()) continue;
+    const result = redactTextContent(original);
+    if (result.text !== original) {
+      textNode.textContent = result.text;
+      mergeStats(stats, result.stats);
+    }
+  }
+
+  const links = doc.querySelectorAll('a[href]');
+  let linkCount = 0;
+  for (const link of links) {
+    const href = link.getAttribute('href');
+    if (href && href !== '#') {
+      link.setAttribute('href', '#');
+      linkCount++;
+    }
+  }
+  if (linkCount > 0) stats['Links sanitized'] = linkCount;
+
+  const images = doc.querySelectorAll('img[src]');
+  let imgCount = 0;
+  for (const img of images) {
+    const src = img.getAttribute('src');
+    if (!src || src === 'data:') continue;
+    const attrW = img.getAttribute('width');
+    const attrH = img.getAttribute('height');
+    const style = img.style;
+    const styleW = style.width;
+    const styleH = style.height;
+    const placeholderSvg = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80"><rect width="120" height="80" fill="#f0ede8"/><g transform="translate(60,40)" fill="none" stroke="#bbb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M-22 0c4.4-7.3 12.4-12 22-12s17.6 4.7 22 12c-4.4 7.3-12.4 12-22 12s-17.6-4.7-22-12z"/><circle cx="0" cy="0" r="5.5"/><line x1="-18" y1="14" x2="18" y2="-14"/></g></svg>`)}`;
+    img.setAttribute('src', placeholderSvg);
+    if (attrW) img.setAttribute('width', attrW);
+    if (attrH) img.setAttribute('height', attrH);
+    if (styleW) img.style.width = styleW;
+    if (styleH) img.style.height = styleH;
+    img.style.border = '1px solid #e0dcd6';
+    img.style.borderRadius = '4px';
+    img.setAttribute('alt', '[IMAGE]');
+    imgCount++;
+  }
+  if (imgCount > 0) stats['Images sanitized'] = imgCount;
+
+  const serialized = serializeDocument(doc, html);
+  return { html: serialized, stats };
+}
+
+function serializeDocument(doc, originalHtml) {
+  const hadDoctype = /<!DOCTYPE/i.test(originalHtml);
+  const hadHtmlTag = /<html[\s>]/i.test(originalHtml);
+  const hadHeadTag = /<head[\s>]/i.test(originalHtml);
+  const hadBodyTag = /<body[\s>]/i.test(originalHtml);
+
+  if (hadDoctype || hadHtmlTag) {
+    let result = '';
+    if (hadDoctype) {
+      const dtMatch = originalHtml.match(/<!DOCTYPE[^>]*>/i);
+      result += (dtMatch ? dtMatch[0] : '<!DOCTYPE html>') + '\n';
+    }
+    const htmlEl = doc.documentElement;
+    const htmlAttrs = getElementAttributes(htmlEl);
+    result += `<html${htmlAttrs}>\n`;
+    if (hadHeadTag && doc.head) {
+      const headAttrs = getElementAttributes(doc.head);
+      result += `<head${headAttrs}>${doc.head.innerHTML}</head>\n`;
+    }
+    if (doc.body) {
+      const bodyAttrs = getElementAttributes(doc.body);
+      result += `<body${bodyAttrs}>${doc.body.innerHTML}</body>\n`;
+    }
+    result += '</html>';
+    return result;
+  } else if (hadBodyTag && doc.body) {
+    const bodyAttrs = getElementAttributes(doc.body);
+    return `<body${bodyAttrs}>${doc.body.innerHTML}</body>`;
+  } else if (doc.body) {
+    return doc.body.innerHTML;
+  }
+  return doc.documentElement.outerHTML;
+}
+
+function getElementAttributes(el) {
+  let attrs = '';
+  for (const attr of el.attributes) {
+    attrs += ` ${attr.name}="${attr.value}"`;
+  }
+  return attrs;
+}
+
+function redactPart(text, isHtml) {
+  if (isHtml) {
+    return redactHtml(text);
+  } else {
+    const result = redactTextContent(text);
+    return { html: result.text, stats: result.stats };
+  }
+}
+
+function redactFromHeader(value) {
+  let redacted = value;
+  let count = 0;
+  redacted = redacted.replace(/"[^"]+"/g, () => { count++; return '"[SENDER_NAME]"'; });
+  redacted = redacted.replace(/^([^<"\s][^<]*?)\s*</i, () => { count++; return '[SENDER_NAME] <'; });
+  return { value: redacted, count };
+}
+
+// ---- Main Pipeline ----
+
+function redactEmail(rawContent) {
+  const allStats = {};
+  const { headers, body, isMultipart, boundary } = parseEmail(rawContent);
+  const { kept: keptHeaders, removedCount: headersRemoved } = filterHeaders(headers);
+  if (headersRemoved > 0) allStats['Headers removed'] = headersRemoved;
+
+  const outputHeaders = [];
+  for (const header of keptHeaders) {
+    const lowerName = header.name.toLowerCase();
+    if (lowerName === 'from') {
+      const { value, count } = redactFromHeader(header.value);
+      if (count > 0) allStats['Names in From'] = count;
+      const emailRedacted = redactTextContent(value);
+      outputHeaders.push(`From: ${emailRedacted.text}`);
+      mergeStats(allStats, emailRedacted.stats);
+    } else if (lowerName === 'subject') {
+      const subjectRedacted = redactTextContent(header.value);
+      outputHeaders.push(`Subject: ${subjectRedacted.text}`);
+      mergeStats(allStats, subjectRedacted.stats);
+    } else {
+      outputHeaders.push(`${header.name}: ${header.value}`);
+    }
+  }
+
+  let outputBody = '';
+  let renderHtml = null;
+  let renderPlain = null;
+
+  if (isMultipart && boundary) {
+    const parts = extractMimeParts(body, boundary);
+    const { kept: keptPart, removedTypes } = filterMimeParts(parts);
+    if (!keptPart) throw new Error('UNSUPPORTED_EMAIL');
+    if (removedTypes.length > 0) allStats['MIME parts removed'] = removedTypes.length;
+
+    const partCtMatch = keptPart.headers.match(/Content-Type:\s*(.+)/i);
+    const keptContentType = partCtMatch ? partCtMatch[1].trim() : keptPart.contentType;
+    const ctIdx = outputHeaders.findIndex(h => h.toLowerCase().startsWith('content-type:'));
+    if (ctIdx !== -1) outputHeaders[ctIdx] = 'Content-Type: ' + keptContentType;
+    const mimeIdx = outputHeaders.findIndex(h => h.toLowerCase().startsWith('mime-version:'));
+    if (mimeIdx !== -1) outputHeaders.splice(mimeIdx, 1);
+
+    const encoding = detectTransferEncoding(keptPart.headers);
+    const decodedBody = decodePartBody(keptPart.body, encoding);
+    const isHtml = keptPart.contentType.startsWith('text/html');
+    const partRedacted = redactPart(decodedBody, isHtml);
+    mergeStats(allStats, partRedacted.stats);
+    outputBody = partRedacted.html;
+    if (isHtml) { renderHtml = partRedacted.html; } else { renderPlain = partRedacted.html; }
+  } else {
+    const cteHeader = headers.find(h => h.name.toLowerCase() === 'content-transfer-encoding');
+    const encoding = cteHeader ? cteHeader.value.toLowerCase().trim() : '7bit';
+    const decodedBody = decodePartBody(body, encoding);
+    const contentTypeHeader = keptHeaders.find(h => h.name.toLowerCase() === 'content-type');
+    const ct = contentTypeHeader ? contentTypeHeader.value.toLowerCase() : '';
+    const isHtml = ct.includes('text/html');
+    const bodyRedacted = redactPart(decodedBody, isHtml);
+    outputBody = bodyRedacted.html;
+    mergeStats(allStats, bodyRedacted.stats);
+    if (isHtml) { renderHtml = bodyRedacted.html; } else { renderPlain = bodyRedacted.html; }
+  }
+
+  const fromHeader = outputHeaders.find(h => h.startsWith('From:'));
+  const subjectHeader = outputHeaders.find(h => h.startsWith('Subject:'));
+  const renderFrom = fromHeader ? fromHeader.replace(/^From:\s*/, '') : '';
+  const renderSubject = subjectHeader ? subjectHeader.replace(/^Subject:\s*/, '') : '';
+  const redactedText = outputHeaders.join('\n') + '\n\n' + outputBody;
+
+  return {
+    redactedText,
+    stats: allStats,
+    render: { from: renderFrom, subject: renderSubject, html: renderHtml, plain: renderPlain }
+  };
+}
+
+function mergeStats(target, source) {
+  for (const [key, val] of Object.entries(source)) {
+    target[key] = (target[key] || 0) + val;
+  }
+}
+
+// =============================================
+// UI Logic
+// =============================================
+
+let currentRedactedText = '';
+let currentRenderData = null;
+
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const uploadSection = document.getElementById('upload-section');
+const resultSection = document.getElementById('result-section');
+const errorMsg = document.getElementById('error-msg');
+
+// Drag & drop
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('dragover');
+});
+
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('dragover');
+});
+
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+});
+
+function processFile(file) {
+  const validExts = ['.eml', '.txt'];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!validExts.includes(ext)) {
+    showError('Please upload a .eml or .txt file.');
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    showError('File is too large. Please upload a file under 10MB.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const content = e.target.result;
+    try {
+      const { redactedText, stats, render } = redactEmail(content);
+      currentRedactedText = redactedText;
+      currentRenderData = render;
+      showResult(file, redactedText, stats, render);
+    } catch (err) {
+      if (err.message === 'UNSUPPORTED_EMAIL') {
+        showError('This email format is not supported. The email must contain a text/html or text/plain part.');
+      } else {
+        showError('Something went wrong processing your file. Please make sure it\'s a valid email file.');
+      }
+      console.error(err);
+    }
+  };
+  reader.onerror = () => showError('Could not read the file. Please try again.');
+  reader.readAsText(file);
+}
+
+function showResult(file, redactedText, stats, render) {
+  document.getElementById('privacy-badge').style.display = 'none';
+  document.getElementById('header-subtitle').style.display = 'none';
+  document.getElementById('start-over').style.display = '';
+
+  document.getElementById('filename').textContent = file.name;
+  document.getElementById('filesize').textContent = `(${formatFileSize(file.size)})`;
+  document.getElementById('header-filename').textContent = file.name;
+  document.getElementById('header-filesize').textContent = `(${formatFileSize(file.size)})`;
+  document.getElementById('header-file-info').style.display = '';
+  document.getElementById('file-info').style.display = 'none';
+
+  const totalRedacted = Object.values(stats).reduce((a, b) => a + b, 0);
+
+  uploadSection.style.display = 'none';
+  resultSection.classList.add('visible');
+  document.querySelector('.container').classList.add('wide');
+  hideError();
+
+  document.getElementById('render-from').textContent = render.from || '(unknown)';
+  document.getElementById('render-subject').textContent = render.subject || '(no subject)';
+  renderEmailPreview(render);
+
+  const previewEl = document.getElementById('result-preview');
+  previewEl.innerHTML = highlightRedactions(redactedText);
+
+  document.getElementById('result-editable').value = redactedText;
+
+  switchTab('preview', true);
+}
+
+function renderEmailPreview(render) {
+  const iframe = document.getElementById('email-render-frame');
+  let htmlContent = '';
+
+  if (render.html) {
+    htmlContent = render.html;
+    const injectedStyles = `<style>
+      body { margin: 16px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      .redact-target { cursor: pointer; border-radius: 2px; transition: background 0.1s ease; }
+      .redact-target:hover { background: #FFF0ED; outline: 1px solid #E07A6B; }
+      .redact-placeholder { background: #FDEAE8; color: #B94A3E; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 0.9em; cursor: default; }
+      .redact-placeholder:hover { outline: none; background: #FDEAE8; }
+      .redact-toast {
+        position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+        background: #2C2825; color: #fff; padding: 8px 16px; border-radius: 8px;
+        font-size: 12px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 9999;
+      }
+      .redact-toast.show { opacity: 1; }
+    </style>`;
+    if (htmlContent.includes('</head>')) {
+      htmlContent = htmlContent.replace('</head>', injectedStyles + '</head>');
+    } else if (htmlContent.includes('<body')) {
+      htmlContent = htmlContent.replace(/<body([^>]*)>/, '<body$1>' + injectedStyles);
+    } else {
+      htmlContent = injectedStyles + htmlContent;
+    }
+  } else if (render.plain) {
+    const escaped = render.plain
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    htmlContent = `<!DOCTYPE html><html><head><style>
+      body { margin: 16px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; color: #333; white-space: pre-wrap; }
+      .redact-target { cursor: pointer; border-radius: 2px; transition: background 0.1s ease; }
+      .redact-target:hover { background: #FFF0ED; outline: 1px solid #E07A6B; }
+      .redact-placeholder { background: #FDEAE8; color: #B94A3E; padding: 1px 5px; border-radius: 3px; font-weight: 600; font-size: 0.9em; cursor: default; }
+      .redact-placeholder:hover { outline: none; background: #FDEAE8; }
+      .redact-toast {
+        position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+        background: #2C2825; color: #fff; padding: 8px 16px; border-radius: 8px;
+        font-size: 12px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 9999;
+      }
+      .redact-toast.show { opacity: 1; }
+    </style></head><body>${escaped}</body></html>`;
+  } else {
+    htmlContent = `<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:80vh;font-family:sans-serif;color:#999;">
+      <p>No text/html or text/plain content found in this email.</p>
+    </body></html>`;
+  }
+
+  htmlContent = htmlContent.replace(
+    /\[(AMOUNT|EMAIL|PHONE|SSN|CARD_NUMBER|LAST4|ACCOUNT_NUM|ADDRESS|STATE|ZIP|IP_ADDRESS|SENDER_NAME|RECIPIENT_NAME|RECIPIENT_EMAIL|NAME|USER_REDACTED|REDACTED)\]/g,
+    '<span class="redact-placeholder">[$1]</span>'
+  );
+
+  iframe.srcdoc = htmlContent;
+
+  iframe.onload = () => {
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      makeTextNodesInteractive(doc);
+
+      const toast = doc.createElement('div');
+      toast.className = 'redact-toast';
+      doc.body.appendChild(toast);
+
+      const height = doc.documentElement.scrollHeight || doc.body.scrollHeight;
+      iframe.style.height = Math.max(200, Math.min(height + 32, 800)) + 'px';
+    } catch (e) {
+      iframe.style.height = '400px';
+    }
+  };
+}
+
+function makeTextNodesInteractive(doc) {
+  const SKIP_TAGS = new Set(['STYLE', 'SCRIPT', 'NOSCRIPT', 'SVG', 'MATH', 'TEMPLATE']);
+
+  function hasSkippedAncestor(node) {
+    let el = node.parentNode;
+    while (el) {
+      if (SKIP_TAGS.has(el.nodeName)) return true;
+      el = el.parentNode;
+    }
+    return false;
+  }
+
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  let node;
+  while (node = walker.nextNode()) {
+    if (!node.textContent.trim()) continue;
+    if (hasSkippedAncestor(node)) continue;
+    if (node.parentNode.classList?.contains('redact-placeholder')) continue;
+    if (node.parentNode.classList?.contains('redact-target')) continue;
+    textNodes.push(node);
+  }
+
+  for (const textNode of textNodes) {
+    const span = doc.createElement('span');
+    span.className = 'redact-target';
+    span.title = 'Click to redact this text';
+    textNode.parentNode.insertBefore(span, textNode);
+    span.appendChild(textNode);
+
+    span.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const originalText = span.textContent;
+      if (!originalText.trim()) return;
+
+      if (currentRedactedText.includes(originalText)) {
+        currentRedactedText = currentRedactedText.replace(originalText, '[USER_REDACTED]');
+        document.getElementById('result-editable').value = currentRedactedText;
+        document.getElementById('result-preview').innerHTML = highlightRedactions(currentRedactedText);
+      }
+
+      span.textContent = '[USER_REDACTED]';
+      span.className = 'redact-placeholder';
+      span.title = '';
+      span.style.cursor = 'default';
+
+      updateUserRedactionCount();
+      showIframeToast(doc, `Redacted: "${originalText.length > 30 ? originalText.substring(0, 30) + '\u2026' : originalText}"`);
+    });
+  }
+
+  document.getElementById('click-redact-hint').style.display = '';
+}
+
+function showIframeToast(doc, msg) {
+  const toast = doc.querySelector('.redact-toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+function updateUserRedactionCount() {
+  // Redaction summary UI removed; no-op
+}
+
+function toggleHowItWorks() {
+  const box = document.getElementById('how-it-works');
+  const toggle = box.querySelector('.info-box-toggle');
+  const isOpen = box.classList.toggle('open');
+  toggle.setAttribute('aria-expanded', isOpen);
+}
+
+function switchTab(tabName, skipRender) {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.remove('active');
+    t.setAttribute('aria-selected', 'false');
+  });
+  const activeTab = document.getElementById('tab-' + tabName);
+  activeTab.classList.add('active');
+  activeTab.setAttribute('aria-selected', 'true');
+
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tabName).classList.add('active');
+
+  const editBtn = document.getElementById('toggle-edit-btn');
+  editBtn.style.display = tabName === 'source' ? '' : 'none';
+
+  if (tabName === 'preview' && !skipRender) {
+    const editable = document.getElementById('result-editable');
+    if (editable.style.display !== 'none') {
+      currentRedactedText = editable.value;
+    }
+    const render = rebuildRenderData(currentRedactedText);
+    currentRenderData = render;
+    document.getElementById('render-from').textContent = render.from || '(unknown)';
+    document.getElementById('render-subject').textContent = render.subject || '(no subject)';
+    renderEmailPreview(render);
+  }
+
+  if (tabName === 'source') {
+    document.getElementById('result-preview').innerHTML = highlightRedactions(currentRedactedText);
+    document.getElementById('result-editable').value = currentRedactedText;
+  }
+}
+
+function rebuildRenderData(text) {
+  const render = { from: '', subject: '', html: null, plain: null };
+  if (!text) return render;
+
+  const blankLineIdx = text.search(/\n\n|\r\n\r\n/);
+  let headerBlock = '';
+  let body = '';
+  if (blankLineIdx >= 0) {
+    headerBlock = text.substring(0, blankLineIdx);
+    body = text.substring(blankLineIdx).replace(/^[\r\n]+/, '');
+  } else {
+    body = text;
+  }
+
+  const fromMatch = headerBlock.match(/^From:\s*(.+)$/mi);
+  const subjectMatch = headerBlock.match(/^Subject:\s*(.+)$/mi);
+  if (fromMatch) render.from = fromMatch[1].trim();
+  if (subjectMatch) render.subject = subjectMatch[1].trim();
+
+  const contentTypeMatch = headerBlock.match(/^Content-Type:\s*(.+)$/mi);
+  const ctRaw = contentTypeMatch ? contentTypeMatch[1] : '';
+  const ct = ctRaw.toLowerCase();
+
+  if (ct.includes('multipart')) {
+    const boundaryMatch = ctRaw.match(/boundary\s*=\s*"?([^";\s]+)"?/i);
+    if (boundaryMatch) {
+      extractPartsFromBody(body, boundaryMatch[1], render);
+    }
+  } else if (ct.includes('text/html') || body.trim().startsWith('<')) {
+    render.html = body;
+  } else {
+    render.plain = body;
+  }
+
+  return render;
+}
+
+function extractPartsFromBody(body, boundary, render) {
+  const parts = body.split('--' + boundary);
+  for (const part of parts) {
+    const partCt = part.match(/Content-Type:\s*([^\r\n;]+)/i);
+    if (!partCt) continue;
+    const partType = partCt[1].toLowerCase().trim();
+    const partBlank = part.search(/\n\n|\r\n\r\n/);
+    if (partBlank < 0) continue;
+    const partBody = part.substring(partBlank).replace(/^[\r\n]+/, '');
+
+    if (partType.includes('multipart')) {
+      const nestedBoundary = part.match(/boundary\s*=\s*"?([^";\s]+)"?/i);
+      if (nestedBoundary) {
+        extractPartsFromBody(partBody, nestedBoundary[1], render);
+      }
+    } else if (partType.includes('text/html') && !render.html) {
+      render.html = partBody;
+    } else if (partType.includes('text/plain') && !render.plain) {
+      render.plain = partBody;
+    }
+  }
+}
+
+function highlightRedactions(text) {
+  let escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  escaped = escaped.replace(/\[(AMOUNT|EMAIL|PHONE|SSN|CARD_NUMBER|LAST4|ACCOUNT_NUM|ADDRESS|STATE|ZIP|IP_ADDRESS|SENDER_NAME|RECIPIENT_NAME|RECIPIENT_EMAIL|NAME|USER_REDACTED|REDACTED)\]/g,
+    '<span class="redacted">[$1]</span>');
+
+  return escaped;
+}
+
+function toggleEdit() {
+  const preview = document.getElementById('result-preview');
+  const editable = document.getElementById('result-editable');
+  const btn = document.getElementById('toggle-edit-btn');
+
+  if (editable.style.display === 'none') {
+    editable.style.display = 'block';
+    preview.style.display = 'none';
+    btn.innerHTML = '<svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg> Preview';
+  } else {
+    currentRedactedText = editable.value;
+    editable.style.display = 'none';
+    preview.style.display = 'block';
+    preview.innerHTML = highlightRedactions(currentRedactedText);
+    btn.innerHTML = '<svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit';
+  }
+}
+
+function copyResult() {
+  const editable = document.getElementById('result-editable');
+  if (editable.style.display !== 'none') {
+    currentRedactedText = editable.value;
+  }
+
+  navigator.clipboard.writeText(currentRedactedText).then(() => {
+    showToast('Copied to clipboard');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = currentRedactedText;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Copied to clipboard');
+  });
+}
+
+function downloadResult() {
+  const editable = document.getElementById('result-editable');
+  if (editable.style.display !== 'none') {
+    currentRedactedText = editable.value;
+  }
+
+  const blob = new Blob([currentRedactedText], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sanitized-email.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('File downloaded');
+}
+
+function resetTool() {
+  uploadSection.style.display = 'block';
+  resultSection.classList.remove('visible');
+  document.querySelector('.container').classList.remove('wide');
+  fileInput.value = '';
+  currentRedactedText = '';
+  currentRenderData = null;
+  hideError();
+
+  switchTab('preview');
+  document.getElementById('result-editable').style.display = 'none';
+  document.getElementById('result-preview').style.display = 'block';
+
+  document.getElementById('email-render-frame').srcdoc = '';
+  document.getElementById('click-redact-hint').style.display = 'none';
+
+  document.getElementById('privacy-badge').style.display = '';
+  document.getElementById('header-subtitle').style.display = '';
+  document.getElementById('start-over').style.display = 'none';
+  document.getElementById('header-file-info').style.display = 'none';
+  document.getElementById('file-info').style.display = '';
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.classList.add('visible');
+}
+
+function hideError() {
+  errorMsg.classList.remove('visible');
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+</script>
+
+</body>
+</html>
