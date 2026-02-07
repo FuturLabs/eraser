@@ -452,6 +452,41 @@
     padding: 4px 10px;
     width: 100%;
   }
+  .sidebar-tip {
+    position: relative;
+    background: var(--blue-bg);
+    border: 1px solid #C9DAE9;
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-top: 6px;
+  }
+  .sidebar-tip-arrow {
+    position: absolute;
+    left: -15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #C9DAE9;
+    line-height: 0;
+  }
+  .sidebar-tip-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--blue-text);
+    opacity: 0.7;
+    margin-bottom: 4px;
+  }
+  .sidebar-tip-text {
+    display: block;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--blue-text);
+    transition: opacity 0.2s ease;
+  }
   @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
@@ -966,10 +1001,6 @@
           <!-- Email Preview -->
           <div class="tab-panel active" id="panel-preview" role="tabpanel" aria-labelledby="tab-preview">
             <div class="email-render-wrapper">
-              <div class="click-redact-hint" id="click-redact-hint" style="display:none;">
-                <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Click any text in the preview to manually redact it</span>
-              </div>
               <div class="email-render-header">
                 <div class="email-render-field"><span class="email-render-label">From:</span> <span id="render-from"></span></div>
                 <div class="email-render-field"><span class="email-render-label">Subject:</span> <span id="render-subject"></span></div>
@@ -997,6 +1028,12 @@
           <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M1 4v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.51 15a9 9 0 105.42-8.49L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Start Over
         </button>
+        <div class="sidebar-tip" id="sidebar-tip">
+          <div class="sidebar-tip-content">
+            <span class="sidebar-tip-label"><svg width="11" height="11" fill="none" viewBox="0 0 24 24"><path d="M12 2a7 7 0 00-3 13.33V17a1 1 0 001 1h4a1 1 0 001-1v-1.67A7 7 0 0012 2zM9 21h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Tip</span>
+            <span class="sidebar-tip-text" id="sidebar-tip-text">Click any text in the preview to manually redact it</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1660,6 +1697,7 @@ function showResult(file, redactedText, stats, render) {
   resultSection.classList.add('visible');
   document.querySelector('.container').classList.add('wide');
   hideError();
+  startTipRotation();
 
   document.getElementById('render-from').textContent = render.from || '(unknown)';
   document.getElementById('render-subject').textContent = render.subject || '(no subject)';
@@ -1800,7 +1838,6 @@ function makeTextNodesInteractive(doc) {
     });
   }
 
-  document.getElementById('click-redact-hint').style.display = '';
 }
 
 function showIframeToast(doc, msg) {
@@ -1813,6 +1850,36 @@ function showIframeToast(doc, msg) {
 
 function updateUserRedactionCount() {
   // Redaction summary UI removed; no-op
+}
+
+const sidebarTips = [
+  'Click any text in the preview to manually redact it',
+  'Switch to Raw Source to edit the email text directly',
+  'Use Download .txt to save the sanitized version',
+];
+let currentTipIndex = 0;
+let tipInterval = null;
+
+function startTipRotation() {
+  if (tipInterval) clearInterval(tipInterval);
+  currentTipIndex = 0;
+  const el = document.getElementById('sidebar-tip-text');
+  if (el) el.textContent = sidebarTips[0];
+  tipInterval = setInterval(() => {
+    currentTipIndex = (currentTipIndex + 1) % sidebarTips.length;
+    const el = document.getElementById('sidebar-tip-text');
+    if (el) {
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.textContent = sidebarTips[currentTipIndex];
+        el.style.opacity = '1';
+      }, 200);
+    }
+  }, 6000);
+}
+
+function stopTipRotation() {
+  if (tipInterval) { clearInterval(tipInterval); tipInterval = null; }
 }
 
 function toggleHowItWorks() {
@@ -1983,6 +2050,7 @@ function downloadResult() {
 }
 
 function resetTool() {
+  stopTipRotation();
   uploadSection.style.display = 'block';
   resultSection.classList.remove('visible');
   document.querySelector('.container').classList.remove('wide');
@@ -1996,7 +2064,6 @@ function resetTool() {
   document.getElementById('result-preview').style.display = 'block';
 
   document.getElementById('email-render-frame').srcdoc = '';
-  document.getElementById('click-redact-hint').style.display = 'none';
 
   document.getElementById('privacy-badge').style.display = '';
   document.getElementById('header-subtitle').style.display = '';
