@@ -1297,8 +1297,13 @@ const REDACTION_PATTERNS = [
   },
   {
     name: 'Partial account numbers',
-    regex: /(?:ending\s+in[:\s]*|last\s+(?:four|4)\s*(?:digits)?[:\s]*|[x*•●·\u2022\u25CF\u00B7\u2217\u2731]{2,}|(?:Mastercard|Visa|Amex|American\s+Express|Discover|Diners|JCB|Maestro|Debit|Credit)[-–—\s])\s*\d{4}\b/gi,
-    replacer: (match) => match.replace(/\d{4}\b/, '[LAST4]'),
+    regex: /(?:ending\s+in[:\s\u00A0]*|account\s+ending[:\s\u00A0]*|last\s+(?:four|4)\s*(?:digits)?[:\s\u00A0]*|[x*•●·\u2022\u25CF\u00B7\u2217\u2731]{2,}|(?:Mastercard|Visa|Amex|American\s+Express|Discover|Diners|JCB|Maestro|Debit|Credit)[-–—\s])[\s\u00A0]*\d{3,6}\b/gi,
+    replacer: (match) => match.replace(/\d{3,6}\b/, '[LAST4]'),
+  },
+  {
+    name: 'Partial account numbers',
+    regex: /\(\.{2,3}\d{3,6}\)/g,
+    replacer: (match) => match.replace(/\d{3,6}/, '[LAST4]'),
   },
   {
     name: 'Long number sequences',
@@ -1334,7 +1339,7 @@ const REDACTION_PATTERNS = [
 const NAME_PATTERNS = [
   {
     name: 'Greeting names',
-    regex: /(?:Dear|Hi|Hello|Hey|Good\s+(?:morning|afternoon|evening))\s*,?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/g,
+    regex: /(?:Dear|Hi|Hello|Hey|Good\s+(?:morning|afternoon|evening))\s*,?\s+([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]+)?)/g,
     replacer: (match, name) => match.replace(name, '[NAME]'),
   },
   {
@@ -1428,6 +1433,96 @@ function redactHtml(html) {
     if (result.text !== original) {
       textNode.textContent = result.text;
       mergeStats(stats, result.stats);
+    }
+  }
+
+  // Second pass: match patterns across adjacent inline text nodes
+  // (e.g. "Card ending in" in one <span> and "5446" in another)
+  const INLINE_TAGS = new Set(['SPAN','A','B','STRONG','I','EM','U','S','SMALL','BIG','SUB','SUP','FONT','LABEL']);
+  const crossNodePatterns = [
+    {
+      regex: /(?:ending\s+in[:\s\u00A0]*|last\s+(?:four|4)\s*(?:digits)?[:\s\u00A0]*|account\s+ending[:\s\u00A0]*)\d{3,6}\b/gi,
+      replacer: (match) => match.replace(/\d{3,6}\b/, '[LAST4]'),
+      name: 'Partial account numbers',
+    }
+  ];
+
+  function getInlineRun(startNode) {
+    const run = [startNode];
+    // Walk from the parent element's next sibling if the text node is inside an inline element
+    let anchor = startNode;
+    if (startNode.parentNode && INLINE_TAGS.has(startNode.parentNode.tagName)) {
+      anchor = startNode.parentNode;
+    }
+    let sibling = anchor.nextSibling;
+    while (sibling) {
+      if (sibling.nodeType === Node.TEXT_NODE) {
+        run.push(sibling);
+      } else if (sibling.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has(sibling.tagName)) {
+        const innerWalker = doc.createTreeWalker(sibling, NodeFilter.SHOW_TEXT);
+        let inner;
+        while (inner = innerWalker.nextNode()) run.push(inner);
+      } else {
+        break;
+      }
+      sibling = sibling.nextSibling;
+    }
+    return run;
+  }
+
+  const visited = new Set();
+  const allTextNodes = [];
+  const walker2 = doc.createTreeWalker(doc.body || doc.documentElement, NodeFilter.SHOW_TEXT);
+  let n2;
+  while (n2 = walker2.nextNode()) allTextNodes.push(n2);
+
+  for (const textNode of allTextNodes) {
+    if (visited.has(textNode) || hasSkippedAncestor(textNode)) continue;
+    const run = getInlineRun(textNode);
+    if (run.length < 2) { visited.add(textNode); continue; }
+    run.forEach(n => visited.add(n));
+    const joined = run.map(n => n.textContent).join('');
+    let redacted = joined;
+    for (const pattern of crossNodePatterns) {
+      let count = 0;
+      redacted = redacted.replace(pattern.regex, (...args) => { count++; return pattern.replacer(args[0]); });
+      if (count > 0) stats[pattern.name] = (stats[pattern.name] || 0) + count;
+    }
+    if (redacted !== joined) {
+      // Clear all nodes except first, put result in first
+      run[0].textContent = redacted;
+      for (let i = 1; i < run.length; i++) run[i].textContent = '';
+    }
+  }
+
+  // Third pass: handle label/value split across table cells
+  // e.g. <td>Card Ending In</td><td>5446</td>
+  const labelPattern = /(?:card\s+ending\s+in|ending\s+in|account\s+ending)/i;
+  const allCells = doc.querySelectorAll('td, th');
+  for (const cell of allCells) {
+    const cellText = cell.textContent.trim();
+    if (!labelPattern.test(cellText)) continue;
+    // Already contains digits — was handled by earlier passes
+    if (/\d{3,6}/.test(cellText)) continue;
+    // Look in the next sibling cell for a partial account number
+    let nextCell = cell.nextElementSibling;
+    if (!nextCell) {
+      // Try next row's first cell in same table (for tr-based layouts)
+      const row = cell.closest('tr');
+      if (row && row.nextElementSibling) {
+        nextCell = row.nextElementSibling.querySelector('td, th');
+      }
+    }
+    if (nextCell) {
+      const valWalker = doc.createTreeWalker(nextCell, NodeFilter.SHOW_TEXT);
+      let valNode;
+      while (valNode = valWalker.nextNode()) {
+        if (/^\s*\d{3,6}\s*$/.test(valNode.textContent)) {
+          valNode.textContent = valNode.textContent.replace(/\d{3,6}/, '[LAST4]');
+          stats['Partial account numbers'] = (stats['Partial account numbers'] || 0) + 1;
+          break;
+        }
+      }
     }
   }
 
