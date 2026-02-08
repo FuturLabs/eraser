@@ -1444,6 +1444,11 @@ function redactHtml(html) {
       regex: /(?:ending\s+in[:\s\u00A0]*|last\s+(?:four|4)\s*(?:digits)?[:\s\u00A0]*|account\s+ending[:\s\u00A0]*)\d{3,6}\b/gi,
       replacer: (match) => match.replace(/\d{3,6}\b/, '[LAST4]'),
       name: 'Partial account numbers',
+    },
+    {
+      regex: /(?:Dear|Hi|Hello|Hey|Good\s+(?:morning|afternoon|evening))\s*,?\s+([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]+)?)/g,
+      replacer: (match, name) => match.replace(name, '[NAME]'),
+      name: 'Greeting names',
     }
   ];
 
@@ -1485,7 +1490,7 @@ function redactHtml(html) {
     let redacted = joined;
     for (const pattern of crossNodePatterns) {
       let count = 0;
-      redacted = redacted.replace(pattern.regex, (...args) => { count++; return pattern.replacer(args[0]); });
+      redacted = redacted.replace(pattern.regex, (...args) => { count++; return pattern.replacer(...args); });
       if (count > 0) stats[pattern.name] = (stats[pattern.name] || 0) + count;
     }
     if (redacted !== joined) {
